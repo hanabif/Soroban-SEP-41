@@ -12,6 +12,7 @@ struct SetUpResult<'a> {
 
 fn setup<'a>() -> SetUpResult<'a> {
     let env = Env::default();
+    env.mock_all_auths();
 
     let contract_id = env.register(SibToken, ());
 
@@ -63,4 +64,71 @@ fn test_decimal() {
 #[test]
 fn test_transfer() {
     let setup_result = setup();
+    let client = setup_result.client;
+    let sender = setup_result.sender;
+    let receiver = setup_result.receiver;
+
+    client.mint(&sender, &1000);
+    assert_eq!(client.balance(&sender), 1000);
+
+    client.transfer(&sender, &receiver, &400);
+    assert_eq!(client.balance(&sender), 600);
+    assert_eq!(client.balance(&receiver), 400);
+}
+
+#[test]
+fn test_approve_and_transfer_from() {
+    let setup_result = setup();
+    let client = setup_result.client;
+    let sender = setup_result.sender;
+    let receiver = setup_result.receiver;
+    let spender = Address::generate(&setup_result.env);
+
+    client.mint(&sender, &1000);
+
+    client.approve(&sender, &spender, &500, &200);
+    assert_eq!(client.allowance(&sender, &spender), 500);
+
+    client.transfer_from(&spender, &sender, &receiver, &300);
+    assert_eq!(client.balance(&sender), 700);
+    assert_eq!(client.balance(&receiver), 300);
+    assert_eq!(client.allowance(&sender, &spender), 200);
+}
+
+#[test]
+fn test_burn() {
+    let setup_result = setup();
+    let client = setup_result.client;
+    let sender = setup_result.sender;
+
+    client.mint(&sender, &1000);
+    client.burn(&sender, &300);
+    assert_eq!(client.balance(&sender), 700);
+}
+
+#[test]
+fn test_burn_from() {
+    let setup_result = setup();
+    let client = setup_result.client;
+    let sender = setup_result.sender;
+    let spender = Address::generate(&setup_result.env);
+
+    client.mint(&sender, &1000);
+    client.approve(&sender, &spender, &500, &200);
+    
+    client.burn_from(&spender, &sender, &300);
+    assert_eq!(client.balance(&sender), 700);
+    assert_eq!(client.allowance(&sender, &spender), 200);
+}
+
+#[test]
+#[should_panic(expected = "HostError: Error(Contract, #1)")]
+fn test_insufficient_funds() {
+    let setup_result = setup();
+    let client = setup_result.client;
+    let sender = setup_result.sender;
+    let receiver = setup_result.receiver;
+
+    client.mint(&sender, &100);
+    client.transfer(&sender, &receiver, &101);
 }

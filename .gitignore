@@ -3,3 +3,6 @@ Cargo.lock
 **/*.rs.bk
 *.save
 .DS_Store
+.soroban/
+test_snapshots/
+

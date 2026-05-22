@@ -243,4 +243,27 @@ impl SibToken {
     pub fn symbol(env: Env) -> String {
         String::from_str(&env, "SIB")
     }
+
+    pub fn mint(env: Env, to: Address, amount: i128) {
+        let mut balance = Self::balance(env.clone(), to.clone());
+        balance += amount;
+        env.storage()
+            .persistent()
+            .set(&DataKey::Balance(to.clone()), &balance);
+
+        let mut supply = env
+            .storage()
+            .persistent()
+            .get::<_, i128>(&DataKey::Supply)
+            .unwrap_or(0);
+        supply += amount;
+        env.storage().persistent().set(&DataKey::Supply, &supply);
+
+        Transfer {
+            from: env.current_contract_address(),
+            to,
+            amount,
+        }
+        .publish(&env);
+    }
 }
