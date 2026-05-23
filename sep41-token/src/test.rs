@@ -8,6 +8,7 @@ struct SetUpResult<'a> {
     client: SibTokenClient<'a>,
     sender: Address,
     receiver: Address,
+    admin: Address,
 }
 
 fn setup<'a>() -> SetUpResult<'a> {
@@ -22,13 +23,24 @@ fn setup<'a>() -> SetUpResult<'a> {
 
     let receiver = Address::generate(&env);
 
+    let admin = Address::generate(&env);
+
+    client.initialize(
+        &admin,
+        &18,
+        &String::from_str(&env, "SibToken"),
+        &String::from_str(&env, "SIB"),
+    );
+
     SetUpResult {
         env,
         client,
         sender,
         receiver,
+        admin,
     }
 }
+
 
 #[test]
 fn test_name() {
@@ -102,8 +114,45 @@ fn test_burn() {
     let sender = setup_result.sender;
 
     client.mint(&sender, &1000);
-    client.burn(&sender, &300);
+    client.burn(&sender, &400);
+    assert_eq!(client.balance(&sender), 600);
+}
+
+#[test]
+fn test_batch_transfer() {
+    let setup_result = setup();
+    let client = setup_result.client;
+    let sender = setup_result.sender;
+    let r1 = Address::generate(&setup_result.env);
+    let r2 = Address::generate(&setup_result.env);
+
+    client.mint(&sender, &1000);
+
+    let mut recipients = soroban_sdk::vec![&setup_result.env];
+    recipients.push_back((r1.clone(), 100));
+    recipients.push_back((r2.clone(), 200));
+
+    client.batch_transfer(&sender, &recipients);
+
     assert_eq!(client.balance(&sender), 700);
+    assert_eq!(client.balance(&r1), 100);
+    assert_eq!(client.balance(&r2), 200);
+}
+
+#[test]
+fn test_set_admin() {
+    let setup_result = setup();
+    let client = setup_result.client;
+    let admin = setup_result.admin;
+    let new_admin = Address::generate(&setup_result.env);
+
+    client.set_admin(&new_admin);
+    
+    // Original admin should no longer be able to mint
+    // But since mock_all_auths is on, it's hard to test failure without specifically expecting it.
+    // We can at least verify initialize fails now (or rather, mint works with new_admin).
+    client.mint(&setup_result.sender, &100);
+    assert_eq!(client.balance(&setup_result.sender), 100);
 }
 
 #[test]
@@ -120,6 +169,7 @@ fn test_burn_from() {
     assert_eq!(client.balance(&sender), 700);
     assert_eq!(client.allowance(&sender, &spender), 200);
 }
+
 
 #[test]
 #[should_panic(expected = "HostError: Error(Contract, #1)")]

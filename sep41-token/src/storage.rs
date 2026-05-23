@@ -21,6 +21,7 @@ pub enum DataKey {
     Symbol,
     Decimals,
     Supply,
+    IsPaused,
 }
 
 
