@@ -13,29 +13,35 @@ A production-grade implementation of the [SEP-41](https://github.com/stellar/ste
 ## Design Decisions
 
 ### 1. Unified Storage Access
+
 I implemented internal helpers (`read_balance`, `write_balance`, etc.) that consolidate storage logic. Every read/write operation automatically invokes `extend_ttl`. This ensures that active user balances and allowances are never archived by the network, providing a seamless user experience.
 
 ### 2. Gas Optimization via Storage Modes
+
 - **Instance Storage**: Used for consensus-wide metadata (`admin`, `decimals`, `is_paused`). Since these are accessed in almost every transaction, instance storage minimizes read costs.
 - **Persistent Storage**: Used for user-specific data (`balance`, `allowance`) to ensure long-term retention beyond the instance lifetime.
 
 ### 3. Safety First
+
 Instead of simple `unwrap()` calls, the contract uses a structured `ContractError` enum. Every administrative action is gated by `require_auth()` and checked against a global `paused` state.
 
 ## Getting Started
 
 ### Prerequisites
+
 - [Rust](https://www.rust-lang.org/)
 - [Soroban CLI](https://soroban.stellar.org/docs/getting-started/setup#install-the-soroban-cli)
 
 ### Installation & Testing
 
 1. Clone the repository and navigate to the project folder:
+
    ```bash
    cd sep41-token
    ```
 
 2. Run the test suite to verify implementation:
+
    ```bash
    cargo test
    ```
