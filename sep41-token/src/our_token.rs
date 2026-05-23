@@ -4,10 +4,179 @@ use crate::{
     error::ContractError,
     events::{Approval, Burn, Transfer, Mint},
     storage::{AllowanceKey, DataKey, AllowanceValue, INSTANCE_BUMP_AMOUNT, INSTANCE_LIFETIME_THRESHOLD, PERSISTENT_BUMP_AMOUNT, PERSISTENT_LIFETIME_THRESHOLD},
+    token_trait::TokenInterface,
 };
 
 #[contract]
 pub struct SibToken;
+
+#[contractimpl]
+impl TokenInterface for SibToken {
+    fn balance(env: Env, id: Address) -> i128 {
+        read_balance(&env, id)
+    }
+
+    fn allowance(env: Env, from: Address, spender: Address) -> i128 {
+        read_allowance(&env, from, spender).amount
+    }
+
+    fn approve(
+        env: Env,
+        from: Address,
+        spender: Address,
+        amount: i128,
+        live_until_ledger: u32,
+    ) -> Result<(), ContractError> {
+        from.require_auth();
+
+        let allowance = AllowanceValue {
+            amount,
+            live_until_ledger,
+        };
+
+        write_allowance(&env, from.clone(), spender.clone(), allowance);
+
+        Approval {
+            from,
+            spender,
+            amount,
+            live_until_ledger,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    fn transfer(
+        env: Env,
+        from: Address,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        from.require_auth();
+        
+        do_transfer(&env, from.clone(), to.clone(), amount)?;
+
+        Transfer {
+            from,
+            to,
+            amount,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    fn transfer_from(
+        env: Env,
+        spender: Address,
+        from: Address,
+        to: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        spender.require_auth();
+
+        let mut allowance = read_allowance(&env, from.clone(), spender.clone());
+
+        if allowance.amount < amount {
+            return Err(ContractError::InsufficientFunds);
+        }
+
+        // SEP-41: Check if the allowance has expired based on ledger sequence.
+        if allowance.live_until_ledger < env.ledger().sequence() && allowance.amount > 0 {
+             return Err(ContractError::InsufficientFunds);
+        }
+
+        allowance.amount -= amount;
+        write_allowance(&env, from.clone(), spender.clone(), allowance);
+
+        do_transfer(&env, from.clone(), to.clone(), amount)?;
+
+        Transfer {
+            from,
+            to,
+            amount,
+        }
+        .publish(&env);
+
+        Ok(())
+    }
+
+    fn burn(env: Env, from: Address, amount: i128) -> Result<(), ContractError> {
+        from.require_auth();
+
+        if env.storage().instance().get(&DataKey::IsPaused).unwrap_or(false) {
+            return Err(ContractError::Paused);
+        }
+
+        let mut balance = read_balance(&env, from.clone());
+        if balance < amount {
+            return Err(ContractError::InsufficientFunds);
+        }
+
+        balance -= amount;
+        write_balance(&env, from.clone(), balance);
+
+        let mut supply = read_supply(&env);
+        supply -= amount;
+        write_supply(&env, supply);
+
+        Burn { from, amount }.publish(&env);
+
+        Ok(())
+    }
+
+    fn burn_from(
+        env: Env,
+        spender: Address,
+        from: Address,
+        amount: i128,
+    ) -> Result<(), ContractError> {
+        spender.require_auth();
+
+        if env.storage().instance().get(&DataKey::IsPaused).unwrap_or(false) {
+            return Err(ContractError::Paused);
+        }
+
+        let mut allowance = read_allowance(&env, from.clone(), spender.clone());
+        if allowance.amount < amount {
+            return Err(ContractError::InsufficientFunds);
+        }
+
+
+        allowance.amount -= amount;
+        write_allowance(&env, from.clone(), spender.clone(), allowance);
+
+        let mut balance = read_balance(&env, from.clone());
+        if balance < amount {
+            return Err(ContractError::InsufficientFunds);
+        }
+
+        balance -= amount;
+        write_balance(&env, from.clone(), balance);
+
+        let mut supply = read_supply(&env);
+        supply -= amount;
+        write_supply(&env, supply);
+
+        Burn { from, amount }.publish(&env);
+
+        Ok(())
+    }
+
+    fn decimals(env: Env) -> u32 {
+        read_decimals(&env)
+    }
+
+    fn name(env: Env) -> String {
+        read_name(&env)
+    }
+
+    fn symbol(env: Env) -> String {
+        read_symbol(&env)
+    }
+}
+
 
 #[contractimpl]
 impl SibToken {
@@ -81,172 +250,6 @@ impl SibToken {
         Ok(())
     }
 
-
-
-    pub fn balance(env: Env, id: Address) -> i128 {
-        read_balance(&env, id)
-    }
-
-    pub fn allowance(env: Env, from: Address, spender: Address) -> i128 {
-        read_allowance(&env, from, spender).amount
-    }
-
-    pub fn approve(
-        env: Env,
-        from: Address,
-        spender: Address,
-        amount: i128,
-        live_until_ledger: u32,
-    ) -> Result<(), ContractError> {
-        from.require_auth();
-
-        let allowance = AllowanceValue {
-            amount,
-            live_until_ledger,
-        };
-
-        write_allowance(&env, from.clone(), spender.clone(), allowance);
-
-        Approval {
-            from,
-            spender,
-            amount,
-            live_until_ledger,
-        }
-        .publish(&env);
-
-        Ok(())
-    }
-
-    pub fn transfer(
-        env: Env,
-        from: Address,
-        to: Address,
-        amount: i128,
-    ) -> Result<(), ContractError> {
-        from.require_auth();
-        
-        do_transfer(&env, from.clone(), to.clone(), amount)?;
-
-        Transfer {
-            from,
-            to,
-            amount,
-        }
-        .publish(&env);
-
-        Ok(())
-    }
-
-    pub fn transfer_from(
-        env: Env,
-        spender: Address,
-        from: Address,
-        to: Address,
-        amount: i128,
-    ) -> Result<(), ContractError> {
-        spender.require_auth();
-
-        let mut allowance = read_allowance(&env, from.clone(), spender.clone());
-
-        if allowance.amount < amount {
-            return Err(ContractError::InsufficientFunds);
-        }
-
-        // SEP-41: Check if the allowance has expired based on ledger sequence.
-        if allowance.live_until_ledger < env.ledger().sequence() && allowance.amount > 0 {
-             return Err(ContractError::InsufficientFunds);
-        }
-
-        allowance.amount -= amount;
-        write_allowance(&env, from.clone(), spender.clone(), allowance);
-
-        do_transfer(&env, from.clone(), to.clone(), amount)?;
-
-        Transfer {
-            from,
-            to,
-            amount,
-        }
-        .publish(&env);
-
-        Ok(())
-    }
-
-    pub fn burn(env: Env, from: Address, amount: i128) -> Result<(), ContractError> {
-        from.require_auth();
-
-        if env.storage().instance().get(&DataKey::IsPaused).unwrap_or(false) {
-            return Err(ContractError::Paused);
-        }
-
-        let mut balance = read_balance(&env, from.clone());
-        if balance < amount {
-            return Err(ContractError::InsufficientFunds);
-        }
-
-        balance -= amount;
-        write_balance(&env, from.clone(), balance);
-
-        let mut supply = read_supply(&env);
-        supply -= amount;
-        write_supply(&env, supply);
-
-        Burn { from, amount }.publish(&env);
-
-        Ok(())
-    }
-
-    pub fn burn_from(
-        env: Env,
-        spender: Address,
-        from: Address,
-        amount: i128,
-    ) -> Result<(), ContractError> {
-        spender.require_auth();
-
-        if env.storage().instance().get(&DataKey::IsPaused).unwrap_or(false) {
-            return Err(ContractError::Paused);
-        }
-
-        let mut allowance = read_allowance(&env, from.clone(), spender.clone());
-        if allowance.amount < amount {
-            return Err(ContractError::InsufficientFunds);
-        }
-
-
-        allowance.amount -= amount;
-        write_allowance(&env, from.clone(), spender.clone(), allowance);
-
-        let mut balance = read_balance(&env, from.clone());
-        if balance < amount {
-            return Err(ContractError::InsufficientFunds);
-        }
-
-        balance -= amount;
-        write_balance(&env, from.clone(), balance);
-
-        let mut supply = read_supply(&env);
-        supply -= amount;
-        write_supply(&env, supply);
-
-        Burn { from, amount }.publish(&env);
-
-        Ok(())
-    }
-
-    pub fn decimals(env: Env) -> u32 {
-        read_decimals(&env)
-    }
-
-    pub fn name(env: Env) -> String {
-        read_name(&env)
-    }
-
-    pub fn symbol(env: Env) -> String {
-        read_symbol(&env)
-    }
-
     /// Optimized batch transfer to reduce `require_auth` overhead and transaction costs.
     pub fn batch_transfer(
         env: Env,
@@ -286,6 +289,7 @@ impl SibToken {
 
         Ok(())
     }
+
 }
 
 // --- Internal Helpers ---

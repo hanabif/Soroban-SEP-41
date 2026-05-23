@@ -46,10 +46,32 @@ Instead of simple `unwrap()` calls, the contract uses a structured `ContractErro
    cargo test
    ```
 
-3. Build the contract:
+3. Add the required WebAssembly target:
+
    ```bash
-   cargo build --target wasm32-unknown-unknown --release
+   rustup target add wasm32v1-none
    ```
+
+4. Build the contract:
+
+   ```bash
+   cargo build --target wasm32v1-none --release
+   ```
+
+The compiled contract will be generated in:
+
+```text
+target/wasm32v1-none/release/
+````
+
+## Deployment
+
+The contract has been successfully deployed to Stellar Testnet.
+
+- **Contract Address:** `CCS3MTIQUOWI7KXSFUUYU2GVD5F7XBRIGRAHS32R477HPYAV4NPWG237`
+- **Network:** Stellar Testnet
+- **Explorer Link:** https://stellar.expert/explorer/testnet/tx/333501d470a10c965b79ef5bb50afbba8d1a0cb9b89257b8b68f42dd865832a4
+- **Deployment Transaction:** https://stellar.expert/explorer/testnet/tx/333501d470a10c965b79ef5bb50afbba8d1a0cb9b89257b8b68f42dd865832a4
 
 ## Contract Interface Highlights
 

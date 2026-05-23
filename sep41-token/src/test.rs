@@ -143,7 +143,7 @@ fn test_batch_transfer() {
 fn test_set_admin() {
     let setup_result = setup();
     let client = setup_result.client;
-    let admin = setup_result.admin;
+    let _admin = setup_result.admin;
     let new_admin = Address::generate(&setup_result.env);
 
     client.set_admin(&new_admin);
