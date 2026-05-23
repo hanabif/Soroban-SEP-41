@@ -33,6 +33,8 @@ impl SibToken {
         Ok(())
     }
 
+    /// Administrative function to mint new tokens.
+    /// Access restricted to the admin and gated by a pause check.
     pub fn mint(env: Env, to: Address, amount: i128) -> Result<(), ContractError> {
         let admin: Address = env.storage().instance().get(&DataKey::Admin).ok_or(ContractError::Unauthorized)?;
         admin.require_auth();
@@ -151,6 +153,7 @@ impl SibToken {
             return Err(ContractError::InsufficientFunds);
         }
 
+        // SEP-41: Check if the allowance has expired based on ledger sequence.
         if allowance.live_until_ledger < env.ledger().sequence() && allowance.amount > 0 {
              return Err(ContractError::InsufficientFunds);
         }
@@ -244,9 +247,7 @@ impl SibToken {
         read_symbol(&env)
     }
 
-    /// Creative Feature: Batch Transfer
-    /// Allows sending tokens to multiple recipients in a single transaction.
-    /// Gast-optimized by reducing individual require_auth calls and storage overhead.
+    /// Optimized batch transfer to reduce `require_auth` overhead and transaction costs.
     pub fn batch_transfer(
         env: Env,
         from: Address,
@@ -288,6 +289,7 @@ impl SibToken {
 }
 
 // --- Internal Helpers ---
+// These helpers handle TTL (Time To Live) management automatically to prevent data archiving.
 
 fn read_balance(env: &Env, addr: Address) -> i128 {
     let key = DataKey::Balance(addr);
@@ -346,6 +348,7 @@ fn read_symbol(env: &Env) -> String {
 }
 
 fn do_transfer(env: &Env, from: Address, to: Address, amount: i128) -> Result<(), ContractError> {
+    // Check global pause state before any token movement.
     if env.storage().instance().get(&DataKey::IsPaused).unwrap_or(false) {
         return Err(ContractError::Paused);
     }
