@@ -28,3 +28,13 @@ pub struct Burn {
     pub from: Address,
     pub amount: i128,
 }
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Mint {
+    #[topic]
+    pub admin: Address,
+    #[topic]
+    pub to: Address,
+    pub amount: i128,
+}
